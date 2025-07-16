@@ -1,0 +1,3 @@
+__pycache__/
+*.pyc
+telegram-sheet-writer.json
