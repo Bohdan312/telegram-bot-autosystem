@@ -9,20 +9,28 @@ from telegram.ext import (
     filters
 )
 
-
+import os
+import json
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 
+# 🔐 Створення ключа з ENV
+if os.getenv("GCP_CREDS"):
+    creds = json.loads(os.getenv("GCP_CREDS"))
+    with open("telegram-sheet-writer.json", "w") as f:
+        json.dump(creds, f)
+
+# Telegram токен
 TOKEN = "8026296885:AAHRIsqad7-M-1MjlmaweImA6AhFOJPrp5c"
 
 # Стан форми
 NAME, CONTACT, NEED, FOLLOWUP = range(4)
 
-# Прапорець, щоб не запускати форму повторно
+# Для запобігання повторній заявці
 submitted_users = set()
 
-# /start
+# Старт
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
         "👋 Привіт! Якщо вам потрібен ефективний Telegram-бот — ви в правильному місці.\n\n"
@@ -71,7 +79,6 @@ async def get_need(update: Update, context: ContextTypes.DEFAULT_TYPE):
     need = context.user_data["need"]
     date = datetime.now().strftime("%Y-%m-%d %H:%M")
 
-    # Зберігаємо в таблицю
     try:
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
         creds = ServiceAccountCredentials.from_json_keyfile_name("telegram-sheet-writer.json", scope)
@@ -84,10 +91,8 @@ async def get_need(update: Update, context: ContextTypes.DEFAULT_TYPE):
     summary = f"📥 Нова заявка:\n👤 Ім’я: {name}\n⏰ Контакт: {contact}\n💬 Потреба: {need}"
     await context.bot.send_message(chat_id=661952434, text=summary)
 
-    # Прапорець
     submitted_users.add(update.message.from_user.id)
 
-    # Варіанти дій далі
     keyboard = [[
         InlineKeyboardButton("🔁 Залишити ще заявку", callback_data="new_form"),
         InlineKeyboardButton("📆 Консультація", callback_data="book_call")
@@ -120,6 +125,10 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("❌ Дію скасовано.")
     return ConversationHandler.END
 
+# 👉 async handler для кінця форми
+async def end_conversation(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    return ConversationHandler.END
+
 if __name__ == '__main__':
     app = ApplicationBuilder().token(TOKEN).build()
 
@@ -129,18 +138,20 @@ if __name__ == '__main__':
             NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name)],
             CONTACT: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_contact)],
             NEED: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_need)],
-            FOLLOWUP: [MessageHandler(filters.ALL, lambda u, c: ConversationHandler.END)]
+            FOLLOWUP: [MessageHandler(filters.ALL, end_conversation)]
         },
         fallbacks=[CommandHandler("cancel", cancel)]
     )
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.Regex("Приклади ботів"), show_examples))
+
     app.add_handler(ConversationHandler(
         entry_points=[CallbackQueryHandler(handle_followup)],
         states={FOLLOWUP: [CallbackQueryHandler(handle_followup)]},
         fallbacks=[]
     ))
+
     app.add_handler(conv_handler)
 
     print("🚀 Бот запущено з автоворонкою!")
