@@ -18,8 +18,10 @@ from datetime import datetime
 # 🔐 Створення ключа з ENV
 if os.getenv("GCP_CREDS"):
     creds = json.loads(os.getenv("GCP_CREDS"))
-    with open("telegram-sheet-writer.json", "w") as f:
-        json.dump(creds, f)
+   import os, json
+creds_info = json.loads(os.environ["GOOGLE_CREDENTIALS_JSON"])
+creds = service_account.Credentials.from_service_account_info(creds_info)
+
 
 # Telegram токен
 TOKEN = "8026296885:AAHRIsqad7-M-1MjlmaweImA6AhFOJPrp5c"
