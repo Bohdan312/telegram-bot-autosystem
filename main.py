@@ -11,16 +11,12 @@ from telegram.ext import (
 
 import os
 import json
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
-from datetime import datetime
+from google.oauth2 import service_account
 
-# 🔐 Створення ключа з ENV
-if os.getenv("GCP_CREDS"):
-    creds = json.loads(os.getenv("GCP_CREDS"))
-   import os, json
+# Отримуємо Google API ключ із ENV-перемінної
 creds_info = json.loads(os.environ["GOOGLE_CREDENTIALS_JSON"])
 creds = service_account.Credentials.from_service_account_info(creds_info)
+
 
 
 # Telegram токен
