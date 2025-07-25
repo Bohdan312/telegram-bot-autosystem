@@ -1,160 +1,92 @@
-from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
-from telegram.ext import (
-    ApplicationBuilder,
-    CommandHandler,
-    MessageHandler,
-    CallbackQueryHandler,
-    ConversationHandler,
-    ContextTypes,
-    filters
-)
-from datetime import datetime
 import os
-import json
+import base64
+import logging
 import gspread
-from google.oauth2.service_account import Credentials
-
-# ⛓️ Авторизація через GOOGLE_CREDENTIALS_JSON (у Render => Environment)
-creds_info = json.loads(os.environ["GOOGLE_CREDENTIALS_JSON"])
-creds = Credentials.from_service_account_info(
-    creds_info,
-    scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import (
+    ApplicationBuilder, CommandHandler, MessageHandler,
+    filters, CallbackContext, CallbackQueryHandler, ConversationHandler
 )
-gc = gspread.authorize(creds)
-sheet = gc.open("Telegram_Zayavky").worksheet("Лист1")
 
-# 🤖 Telegram Token
-TOKEN = os.environ.get("BOT_TOKEN") or "8026296885:AAHRIsqad7-M-1MjlmaweImA6AhFOJPrp5c"
+# 🔐 Розкодовуємо Google Sheets credentials з base64
+creds_b64 = os.getenv("GOOGLE_CREDENTIALS_JSON_BASE64")
+if not creds_b64:
+    raise Exception("GOOGLE_CREDENTIALS_JSON_BASE64 не знайдено!")
 
-# 🔁 Стан форми
-NAME, CONTACT, NEED, FOLLOWUP = range(4)
-submitted_users = set()
+creds_json = base64.b64decode(creds_b64).decode("utf-8")
+with open("telegram-sheet-writer.json", "w") as f:
+    f.write(creds_json)
 
-# 🚪 /start
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = (
-        "👋 Привіт! Якщо вам потрібен ефективний Telegram-бот — ви в правильному місці.\n\n"
-        "Я створюю кастомні рішення для бізнесу, автоматизації та продажів.\n\n"
-        "✅ Кожен бот — це конкретна користь:\n"
-        "• Автозбір заявок\n"
-        "• Продаж через воронку\n"
-        "• Кастомні функції під нішу\n\n"
-        "🔽 Напишіть коротко, що саме вам потрібно — і я запропоную рішення."
-    )
-    reply_markup = ReplyKeyboardMarkup([["Приклади ботів"]], resize_keyboard=True)
-    await update.message.reply_text(text, reply_markup=reply_markup)
-    return ConversationHandler.END
+# 🔗 Підключення до Google Таблиці
+gc = gspread.service_account(filename='telegram-sheet-writer.json')
+sheet = gc.open_by_url("https://docs.google.com/spreadsheets/d/ТУТ_ТВІЙ_ID/edit#gid=0").sheet1  # ← змінити URL
 
-# 📌 Приклади
-async def show_examples(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = (
-        "🛠 Приклади рішень, які я створював:\n\n"
-        "1. Бот-заявка для інстаграм-експерта\n"
-        "2. Автовідповідач для онлайн-школи\n"
-        "3. Система бронювання через Telegram\n\n"
-        "Хочу зробити бот під вашу задачу — просто напишіть, що потрібно."
-    )
-    await update.message.reply_text(text)
+# 🚦 Стани для ConversationHandler
+NAME, PHONE = range(2)
 
-# ▶️ Початок форми
-async def trigger_form(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.from_user.id
-    if user_id in submitted_users:
-        await update.message.reply_text("🔁 Ви вже залишали заявку. Натисніть '🔁 Залишити ще заявку' щоб почати нову.")
-        return ConversationHandler.END
-    await update.message.reply_text("💼 Як вас звати?")
-    return NAME
-
-# 🧾 Крок 1
-async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["name"] = update.message.text
-    await update.message.reply_text("📱 Залиште, будь ласка, контакт (Telegram @, телефон):")
-    return CONTACT
-
-# 🧾 Крок 2
-async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["contact"] = update.message.text
-    await update.message.reply_text("💬 Що потрібно автоматизувати / для чого бот?")
-    return NEED
-
-# 🧾 Крок 3
-async def get_need(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["need"] = update.message.text
-    name = context.user_data["name"]
-    contact = context.user_data["contact"]
-    need = context.user_data["need"]
-    date = datetime.now().strftime("%Y-%m-%d %H:%M")
-
-    # 💾 Збереження у Google Таблицю
-    try:
-        sheet.append_row([name, contact, need, date])
-    except Exception as e:
-        print(f"Google Sheets помилка: {e}")
-
-    # 📩 Повідомлення адміну
-    summary = f"📥 Нова заявка:\n👤 Ім’я: {name}\n📱 Контакт: {contact}\n💬 Потреба: {need}"
-    await context.bot.send_message(chat_id=661952434, text=summary)
-
-    submitted_users.add(update.message.from_user.id)
-
-    # ➕ Кнопки після заявки
-    keyboard = [[
-        InlineKeyboardButton("🔁 Залишити ще заявку", callback_data="new_form"),
-        InlineKeyboardButton("📆 Консультація", callback_data="book_call")
-    ]]
+# 🔘 Старт
+async def start(update: Update, context: CallbackContext):
+    keyboard = [[InlineKeyboardButton("🚀 Співпраця", callback_data='apply')]]
     reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text("Привіт! Обери дію:", reply_markup=reply_markup)
 
-    await update.message.reply_text(
-        "✅ Дякую, я отримав заявку і вже працюю над відповіддю! Що далі?",
-        reply_markup=reply_markup
-    )
-    return FOLLOWUP
-
-# 🔄 Обробка після заявки
-async def handle_followup(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# 🧷 Обробка кнопки
+async def button_handler(update: Update, context: CallbackContext):
     query = update.callback_query
     await query.answer()
-
-    if query.data == "new_form":
-        submitted_users.discard(query.from_user.id)
-        await query.message.reply_text("💼 Як вас звати?")
+    if query.data == 'apply':
+        await query.message.reply_text("Введи своє ім’я:")
         return NAME
 
-    elif query.data == "book_call":
-        await query.message.reply_text(
-            "🗓 Щоб забронювати консультацію — напишіть мені 👉 @formbot_xx_bot\n"
-            "⚡️ Або надішліть зручний час, я підлаштуюсь."
-        )
-        return ConversationHandler.END
+# 👤 Отримуємо ім’я
+async def name_handler(update: Update, context: CallbackContext):
+    context.user_data['name'] = update.message.text
+    await update.message.reply_text("Тепер введи свій номер телефону:")
+    return PHONE
 
-# ❌ /cancel
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("❌ Дію скасовано.")
+# ☎️ Отримуємо телефон
+async def phone_handler(update: Update, context: CallbackContext):
+    name = context.user_data.get('name')
+    phone = update.message.text
+
+    # 📝 Запис у Google Таблицю
+    sheet.append_row([name, phone])
+
+    await update.message.reply_text("✅ Заявку прийнято! Ми зв’яжемося з тобою.")
     return ConversationHandler.END
 
-# 🧼 Завершення
-async def end_conversation(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# ❌ Вихід
+async def cancel(update: Update, context: CallbackContext):
+    await update.message.reply_text("Скасовано.")
     return ConversationHandler.END
 
-# ▶️ Запуск
-if __name__ == '__main__':
+# 🔧 Логування
+logging.basicConfig(level=logging.INFO)
+
+# 🚀 Запуск бота
+async def main():
+    TOKEN = os.getenv("BOT_TOKEN")
+    if not TOKEN:
+        raise Exception("BOT_TOKEN не встановлено")
+
     app = ApplicationBuilder().token(TOKEN).build()
 
     conv_handler = ConversationHandler(
-        entry_points=[MessageHandler(filters.TEXT & ~filters.COMMAND, trigger_form)],
+        entry_points=[CallbackQueryHandler(button_handler)],
         states={
-            NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name)],
-            CONTACT: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_contact)],
-            NEED: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_need)],
-            FOLLOWUP: [MessageHandler(filters.ALL, end_conversation)],
+            NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, name_handler)],
+            PHONE: [MessageHandler(filters.TEXT & ~filters.COMMAND, phone_handler)],
         },
-        fallbacks=[CommandHandler("cancel", cancel)],
+        fallbacks=[CommandHandler('cancel', cancel)],
+        per_message=True
     )
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.Regex("Приклади ботів"), show_examples))
-    app.add_handler(CallbackQueryHandler(handle_followup))
     app.add_handler(conv_handler)
 
     print("🚀 Бот запущено з автоворонкою!")
-    app.run_polling()
+    await app.run_polling()
+
+if __name__ == '__main__':
+    import asyncio
+    asyncio.run(main())
