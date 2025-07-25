@@ -19,7 +19,7 @@ with open("telegram-sheet-writer.json", "w") as f:
 
 # 🔗 Підключення до Google Таблиці
 gc = gspread.service_account(filename='telegram-sheet-writer.json')
-sheet = gc.open_by_url("https://docs.google.com/spreadsheets/d/ТУТ_ТВІЙ_ID/edit#gid=0").sheet1  # ← змінити URL
+sheet = gc.open_by_url("https://docs.google.com/spreadsheets/d/https://docs.google.com/spreadsheets/d/12Y4cvC1mxzq42n2mNHv4RwUuTEfNjMTXLppnUBdITFg/edit?gid=0#gid=0/edit#gid=0").sheet1  # ← змінити URL
 
 # 🚦 Стани для ConversationHandler
 NAME, PHONE = range(2)
