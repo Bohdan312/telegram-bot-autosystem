@@ -13,7 +13,8 @@ load_dotenv()
 # 🔐 1. Розкодовуємо облікові дані Google Sheets з base64
 creds_b64 = os.getenv("GOOGLE_CREDENTIALS_JSON_BASE64")
 if not creds_b64:
-    raise Exception("GOOGLE_CREDENTIALS_JSON_BASE64 не знайдено!")
+    raise Exception("BOT_TOKEN_B64=ODAyNjI5Njg4NTpBQUZDbUQ5SmZQbWlSUXpGc2czTnU4dkxETkZQV1ljdFk1OA==
+")
 
 creds_json = base64.b64decode(creds_b64).decode("utf-8")
 with open("telegram-sheet-writer.json", "w") as f:
