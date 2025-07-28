@@ -11,15 +11,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # 🔐 1. Розкодовуємо облікові дані Google Sheets з base64
-creds_b64 = os.getenv("	
-ZGYyMzQwNzY3MjUxZGQ5YmVkOWE4NzgzNzMxY2UwYWQ1ZDQ1MTkxYQo=")
+creds_b64 = os.getenv("GOOGLE_CREDENTIALS_JSON_BASE64")
 if not creds_b64:
-    raise Exception("ZGYyMzQwNzY3MjUxZGQ5YmVkOWE4NzgzNzMxY2UwYWQ1ZDQ1MTkxYQo===
-")
+    raise Exception("GOOGLE_CREDENTIALS_JSON_BASE64 не знайдено!")
 
 creds_json = base64.b64decode(creds_b64).decode("utf-8")
 with open("telegram-sheet-writer.json", "w") as f:
     f.write(creds_json)
+
 
 # 🔗 2. Підключення до Google Таблиці (✅ виправлено URL)
 gc = gspread.service_account(filename='telegram-sheet-writer.json')
