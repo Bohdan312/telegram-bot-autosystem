@@ -12,9 +12,9 @@ load_dotenv()
 
 # 🔐 1. Розкодовуємо облікові дані Google Sheets з base64
 creds_b64 = os.getenv("	
-df2340767251dd9bed9a8783731ce0ad5d45191a")
+ZGYyMzQwNzY3MjUxZGQ5YmVkOWE4NzgzNzMxY2UwYWQ1ZDQ1MTkxYQo=")
 if not creds_b64:
-    raise Exception("BOT_TOKEN_B64=ODAyNjI5Njg4NTpBQUZDbUQ5SmZQbWlSUXpGc2czTnU4dkxETkZQV1ljdFk1OA==
+    raise Exception("ZGYyMzQwNzY3MjUxZGQ5YmVkOWE4NzgzNzMxY2UwYWQ1ZDQ1MTkxYQo===
 ")
 
 creds_json = base64.b64decode(creds_b64).decode("utf-8")
