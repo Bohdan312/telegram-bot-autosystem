@@ -7,6 +7,8 @@ from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler,
     filters, CallbackContext, CallbackQueryHandler, ConversationHandler, ContextTypes
 )
+from dotenv import load_dotenv
+load_dotenv()
 
 # 🔐 1. Розкодовуємо облікові дані Google Sheets з base64
 creds_b64 = os.getenv("GOOGLE_CREDENTIALS_JSON_BASE64")
