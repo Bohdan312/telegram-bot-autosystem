@@ -1,16 +1,22 @@
 import os
-import base64
 import json
+import base64
 import logging
 import gspread
+
 from google.oauth2.service_account import Credentials
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler,
-    filters, CallbackContext, CallbackQueryHandler, ConversationHandler, ContextTypes
+    filters, CallbackContext, CallbackQueryHandler,
+    ConversationHandler, ContextTypes
 )
 
-# 🔐 Розкодовуємо облікові дані Google
+# ⏬ Завантаження змінних середовища
+from dotenv import load_dotenv
+load_dotenv()
+
+# 🔐 1. Підключення до Google Sheets через base64
 creds_b64 = os.getenv("GOOGLE_CREDENTIALS_JSON_BASE64")
 if not creds_b64:
     raise Exception("❌ GOOGLE_CREDENTIALS_JSON_BASE64 не знайдено!")
@@ -18,54 +24,64 @@ if not creds_b64:
 try:
     creds_dict = json.loads(base64.b64decode(creds_b64))
 except Exception as e:
-    raise Exception(f"❌ Помилка при декодуванні або JSON: {e}")
+    raise Exception(f"❌ Неможливо декодувати GOOGLE_CREDENTIALS_JSON_BASE64: {e}")
 
 scopes = ["https://www.googleapis.com/auth/spreadsheets"]
 creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
 gc = gspread.authorize(creds)
 
-# 🔗 Відкриття Google Таблиці
+# 🔗 2. URL Google Таблиці
 sheet_url = "https://docs.google.com/spreadsheets/d/12Y4cvC1mxzq42n2mNHv4RwUuTEfNjMTXLppnUBdITFg/edit#gid=0"
 sheet = gc.open_by_url(sheet_url).sheet1
 
-# 🚦 ConversationHandler
+# 🚦 3. Стани
 NAME, PHONE = range(2)
 
+# 🎯 4. /start команда
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[InlineKeyboardButton("🚀 Співпраця", callback_data='apply')]]
-    await update.message.reply_text("Привіт! Обери дію:", reply_markup=InlineKeyboardMarkup(keyboard))
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text("Привіт! Обери дію:", reply_markup=reply_markup)
 
+# ⏱ 5. Натискання кнопки
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.callback_query.answer()
-    await update.callback_query.message.reply_text("Введи своє ім’я:")
-    return NAME
+    query = update.callback_query
+    await query.answer()
+    if query.data == 'apply':
+        await query.message.reply_text("Введи своє ім’я:")
+        return NAME
 
+# 🧍 6. Отримання імені
 async def name_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['name'] = update.message.text.strip()
     await update.message.reply_text("Тепер введи свій номер телефону:")
     return PHONE
 
+# 📞 7. Отримання телефону
 async def phone_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     name = context.user_data.get('name')
     phone = update.message.text.strip()
+
     try:
         sheet.append_row([name, phone])
         await update.message.reply_text("✅ Заявку прийнято! Ми зв’яжемося з тобою.")
     except Exception as e:
-        logging.error(f"Помилка запису у Google Sheet: {e}")
-        await update.message.reply_text("❌ Виникла помилка при збереженні заявки.")
+        logging.error(f"❌ Помилка запису у Google Sheet: {e}")
+        await update.message.reply_text("❌ Сталася помилка при збереженні заявки.")
+
     return ConversationHandler.END
 
+# ❌ 8. Відміна
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Скасовано.")
     return ConversationHandler.END
 
-logging.basicConfig(level=logging.INFO)
-
+# 🧾 9. Основна функція
 async def main():
     TOKEN = os.getenv("BOT_TOKEN")
     if not TOKEN:
-        raise Exception("❌ BOT_TOKEN не знайдено!")
+        raise Exception("❌ BOT_TOKEN не встановлено!")
+
     app = ApplicationBuilder().token(TOKEN).build()
 
     conv_handler = ConversationHandler(
@@ -81,9 +97,11 @@ async def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(conv_handler)
 
-    print("🚀 Бот запущено на Pella!")
+    print("🚀 Бот запущено з автоворонкою!")
     await app.run_polling()
 
+# ▶️ Запуск
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
     import asyncio
     asyncio.run(main())
