@@ -3,41 +3,39 @@ import json
 import base64
 import logging
 import gspread
-
 from google.oauth2.service_account import Credentials
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler,
-    filters, CallbackContext, CallbackQueryHandler,
-    ConversationHandler, ContextTypes
+    filters, CallbackQueryHandler, ConversationHandler, ContextTypes
 )
-
 from dotenv import load_dotenv
+
 load_dotenv()
 
-# --- Розкодування Google Credentials з base64 ---
+# --- Раскодируем credentials из base64 и авторизуемся ---
 creds_b64 = os.getenv("GOOGLE_CREDENTIALS_JSON_BASE64")
 if not creds_b64:
-    raise Exception("❌ GOOGLE_CREDENTIALS_JSON_BASE64 не знайдено!")
+    raise Exception("❌ GOOGLE_CREDENTIALS_JSON_BASE64 не найден!")
 
 try:
     creds_json_str = base64.b64decode(creds_b64).decode("utf-8")
     creds_dict = json.loads(creds_json_str)
 except Exception as e:
-    raise Exception(f"❌ Неможливо декодувати GOOGLE_CREDENTIALS_JSON_BASE64: {e}")
+    raise Exception(f"❌ Ошибка при декодировании GOOGLE_CREDENTIALS_JSON_BASE64: {e}")
 
 scopes = ["https://www.googleapis.com/auth/spreadsheets"]
 creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
 gc = gspread.authorize(creds)
 
-# --- Підключення до Google Sheets ---
+# --- Подключение к таблице ---
 sheet_url = "https://docs.google.com/spreadsheets/d/12Y4cvC1mxzq42n2mNHv4RwUuTEfNjMTXLppnUBdITFg/edit#gid=0"
 sheet = gc.open_by_url(sheet_url).sheet1
 
-# --- Стани для ConversationHandler ---
+# --- Состояния для ConversationHandler ---
 NAME, PHONE = range(2)
 
-# --- Команди та обробники ---
+# --- Команды ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[InlineKeyboardButton("🚀 Співпраця", callback_data='apply')]]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -58,24 +56,21 @@ async def name_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def phone_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     name = context.user_data.get('name')
     phone = update.message.text.strip()
-
     try:
         sheet.append_row([name, phone])
         await update.message.reply_text("✅ Заявку прийнято! Ми зв’яжемося з тобою.")
     except Exception as e:
         logging.error(f"❌ Помилка запису у Google Sheet: {e}")
         await update.message.reply_text("❌ Сталася помилка при збереженні заявки.")
-
     return ConversationHandler.END
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Скасовано.")
     return ConversationHandler.END
 
-# --- Логування ---
+# --- Логирование ---
 logging.basicConfig(level=logging.INFO)
 
-# --- Запуск бота ---
 async def main():
     TOKEN = os.getenv("BOT_TOKEN")
     if not TOKEN:
