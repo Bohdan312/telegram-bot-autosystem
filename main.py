@@ -11,6 +11,9 @@ from telegram.ext import (
 )
 from dotenv import load_dotenv
 
+import nest_asyncio
+nest_asyncio.apply()
+
 load_dotenv()
 
 # --- Раскодируем credentials из base64 и авторизуемся ---
@@ -85,7 +88,7 @@ async def main():
             PHONE: [MessageHandler(filters.TEXT & ~filters.COMMAND, phone_handler)],
         },
         fallbacks=[CommandHandler('cancel', cancel)],
-        per_message=True
+        # per_message=True  # убрал, чтобы избежать warning
     )
 
     app.add_handler(CommandHandler("start", start))
