@@ -28,6 +28,13 @@ except Exception as e:
 
 scopes = ["https://www.googleapis.com/auth/spreadsheets"]
 creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+creds_b64 = os.getenv("GOOGLE_CREDENTIALS_JSON_BASE64")
+if not creds_b64:
+    raise Exception("GOOGLE_CREDENTIALS_JSON_BASE64 не знайдено!")
+
+creds_dict = json.loads(base64.b64decode(creds_b64))
+scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
 gc = gspread.authorize(creds)
 
 # 🔗 2. URL Google Таблиці
