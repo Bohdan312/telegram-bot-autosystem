@@ -8,49 +8,48 @@ from telegram.ext import (
     filters, CallbackContext, CallbackQueryHandler, ConversationHandler, ContextTypes
 )
 from dotenv import load_dotenv
+
+# 🔐 1. Завантажуємо змінні середовища
 load_dotenv()
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 creds_b64 = os.getenv("GOOGLE_CREDENTIALS_JSON_BASE64")
+
+if not BOT_TOKEN:
+    raise Exception("❌ BOT_TOKEN не встановлено у .env")
 if not creds_b64:
     raise Exception("❌ GOOGLE_CREDENTIALS_JSON_BASE64 не знайдено або порожній!")
 
+# 📤 2. Розкодовуємо Base64 і створюємо JSON-файл, якщо ще не створений
 try:
     creds_json = base64.b64decode(creds_b64).decode("utf-8")
 except Exception as e:
     raise Exception(f"❌ Помилка при декодуванні base64: {e}")
 
-# Додаткова перевірка, чи це дійсний JSON
 if not creds_json.strip().startswith("{"):
     raise Exception("❌ Розкодовано, але це не JSON! Схоже, змінна має неправильне значення.")
 
-with open("telegram-sheet-writer.json", "w") as f:
-    f.write(creds_json)
+if not os.path.exists("telegram-sheet-writer.json"):
+    with open("telegram-sheet-writer.json", "w") as f:
+        f.write(creds_json)
 
+# 🔗 3. Підключення до Google Таблиці
+try:
+    gc = gspread.service_account(filename='telegram-sheet-writer.json')
+except Exception as e:
+    raise Exception(f"❌ Помилка підключення до Google Sheets: {e}")
 
-# 🔐 1. Розкодовуємо облікові дані Google Sheets з base64
-creds_b64 = os.getenv("GOOGLE_CREDENTIALS_JSON_BASE64")
-if not creds_b64:
-    raise Exception("GOOGLE_CREDENTIALS_JSON_BASE64 не знайдено!")
-
-creds_json = base64.b64decode(creds_b64).decode("utf-8")
-with open("telegram-sheet-writer.json", "w") as f:
-    f.write(creds_json)
-
-
-# 🔗 2. Підключення до Google Таблиці (✅ виправлено URL)
-gc = gspread.service_account(filename='telegram-sheet-writer.json')
 sheet_url = "https://docs.google.com/spreadsheets/d/12Y4cvC1mxzq42n2mNHv4RwUuTEfNjMTXLppnUBdITFg/edit#gid=0"
 sheet = gc.open_by_url(sheet_url).sheet1
 
-# 🚦 3. Стани для ConversationHandler
+# 🚦 4. Стани
 NAME, PHONE = range(2)
 
-# 🔘 4. Стартова команда
+# 🟢 5. Команди та обробники
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[InlineKeyboardButton("🚀 Співпраця", callback_data='apply')]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("Привіт! Обери дію:", reply_markup=reply_markup)
 
-# 🧷 5. Обробка кнопки
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -58,16 +57,19 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text("Введи своє ім’я:")
         return NAME
 
-# 👤 6. Отримуємо ім’я
 async def name_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['name'] = update.message.text.strip()
     await update.message.reply_text("Тепер введи свій номер телефону:")
     return PHONE
 
-# ☎️ 7. Отримуємо телефон і записуємо в таблицю
 async def phone_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     name = context.user_data.get('name')
     phone = update.message.text.strip()
+
+    # ✅ Валідація телефону
+    if not phone.startswith("+") or not phone[1:].isdigit():
+        await update.message.reply_text("❗ Номер має починатись з + і містити лише цифри.")
+        return PHONE
 
     try:
         sheet.append_row([name, phone])
@@ -78,21 +80,16 @@ async def phone_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     return ConversationHandler.END
 
-# ❌ 8. Обробка скасування
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Скасовано.")
     return ConversationHandler.END
 
-# 🔧 9. Логування
+# 🛠️ 6. Логування
 logging.basicConfig(level=logging.INFO)
 
-# 🚀 10. Основна функція запуску
+# 🚀 7. Основна функція запуску
 async def main():
-    TOKEN = os.getenv("BOT_TOKEN")
-    if not TOKEN:
-        raise Exception("BOT_TOKEN не встановлено")
-
-    app = ApplicationBuilder().token(TOKEN).build()
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     conv_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(button_handler)],
@@ -110,7 +107,7 @@ async def main():
     print("🚀 Бот запущено з автоворонкою!")
     await app.run_polling()
 
-# ⏯️ Запуск
+# ⏯️ 8. Запуск
 if __name__ == '__main__':
     import asyncio
     asyncio.run(main())
